@@ -17,24 +17,22 @@ const express_1 = __importDefault(require("express"));
 const borrow_model_1 = require("../models/borrow.model");
 const books_model_1 = __importDefault(require("../models/books.model"));
 exports.borrowRoutes = express_1.default.Router();
-// post a borrow
+// POST /borrow — Create a new borrow record
 exports.borrowRoutes.post('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const body = req.body;
         const { book, quantity } = req.body;
         const borrowedBook = yield books_model_1.default.findById(book);
-        console.log(borrowedBook);
         if (!borrowedBook) {
             res.status(404).json({
                 success: false,
-                message: 'Book not found'
+                message: 'Book not found',
             });
             return;
         }
         if (quantity > borrowedBook.copies) {
             res.status(400).json({
                 success: false,
-                message: 'Not enough copies available'
+                message: 'Not enough copies available',
             });
             return;
         }
@@ -43,29 +41,37 @@ exports.borrowRoutes.post('/', (req, res) => __awaiter(void 0, void 0, void 0, f
             updatedBook.updateAvailable();
             yield updatedBook.save();
         }
-        const borrow = yield borrow_model_1.Borrow.create(body);
-        res.status(201).send({
+        const borrow = yield borrow_model_1.Borrow.create(req.body);
+        res.status(201).json({
             success: true,
             message: 'Book borrowed successfully',
             data: borrow,
         });
     }
     catch (error) {
-        res.status(400).json({
-            message: error.message,
-            success: false,
-            error: error
-        });
+        if (error instanceof Error) {
+            res.status(400).json({
+                success: false,
+                message: error.message,
+                error,
+            });
+        }
+        else {
+            res.status(400).json({
+                success: false,
+                message: 'An unknown error occurred',
+            });
+        }
     }
 }));
-// get summary of borrowed books 
+// GET /borrow — Summary of borrowed books
 exports.borrowRoutes.get('/', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const borrow = yield borrow_model_1.Borrow.aggregate([
+        const borrowSummary = yield borrow_model_1.Borrow.aggregate([
             {
                 $group: {
                     _id: '$book',
-                    totalQuantity: { $sum: '$quantity' }
+                    totalQuantity: { $sum: '$quantity' },
                 },
             },
             {
@@ -73,34 +79,40 @@ exports.borrowRoutes.get('/', (req, res) => __awaiter(void 0, void 0, void 0, fu
                     from: 'books',
                     localField: '_id',
                     foreignField: '_id',
-                    as: 'book'
+                    as: 'book',
                 },
             },
-            {
-                $unwind: '$book'
-            },
+            { $unwind: '$book' },
             {
                 $project: {
                     _id: 0,
                     totalQuantity: 1,
                     book: {
                         title: '$book.title',
-                        isbn: '$book.isbn'
-                    }
-                }
-            }
+                        isbn: '$book.isbn',
+                    },
+                },
+            },
         ]);
-        res.status(200).send({
+        res.status(200).json({
             success: true,
             message: 'Borrowed books summary retrieved successfully',
-            data: borrow,
+            data: borrowSummary,
         });
     }
     catch (error) {
-        res.status(400).json({
-            message: error.message,
-            success: false,
-            error: error
-        });
+        if (error instanceof Error) {
+            res.status(400).json({
+                success: false,
+                message: error.message,
+                error,
+            });
+        }
+        else {
+            res.status(400).json({
+                success: false,
+                message: 'An unknown error occurred',
+            });
+        }
     }
 }));
